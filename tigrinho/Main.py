@@ -1,19 +1,18 @@
-import random
 def main():
-    numAle = random.randint(1 , 75)
+   idade = int (input("Qual a sua idade?"))
 
-    num = 0
+   if idade >= 18:
+     print("Entrada liberada")
+   elif idade >= 16:
+     acom=input("Você estaria com acompanhante?")
+     if acom=="sim":
+       print("Entrada liberada!")
+     else:
+       print("Entrada proibida!")
+   else:
+     print("Entrada negada")
 
-    tentativas = 0
-    while num != numAle:
-        num = int (input ("Digite um número: "))
 
-        if num > numAle:
-            print("O número é menor que ", num)
-        elif num < numAle:
-            print("O número é maior que ", num)
-        print("")
-        tentativas += 1
-    print("Você acertou com ", tentativas, " tentativas")
-    return 0
+
+   return 0
 main()
