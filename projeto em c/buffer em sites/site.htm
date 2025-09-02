@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Simulação didática de "buffer overflow" (sem exploração)</title>
+  <style>
+    :root{
+      --fg: #0f172a;
+      --muted:#64748b;
+      --bg:#f8fafc;
+      --card:#ffffff;
+      --ok:#16a34a;
+      --warn:#ef4444;
+      --accent:#2563eb;
+    }
+    *{box-sizing:border-box}
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial;line-height:1.4;margin:0;color:var(--fg);background:var(--bg)}
+    .container{max-width:980px;margin:40px auto;padding:0 20px}
+    h1{font-size:clamp(1.4rem,2.4vw,2rem);margin:0 0 8px}
+    p{color:var(--muted);margin:0 0 16px}
+    .card{background:var(--card);border:1px solid #e5e7eb;border-radius:16px;padding:20px;box-shadow:0 6px 24px rgba(2,6,23,.06)}
+    .grid{display:grid;gap:16px}
+    .two{grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+    label{font-weight:600}
+    textarea, input, button{font:inherit}
+    textarea{width:100%;min-height:72px;padding:10px;border:1px solid #e5e7eb;border-radius:12px;background:#fff}
+    button{cursor:pointer;border:none;border-radius:12px;padding:10px 14px;background:var(--accent);color:#fff;font-weight:600}
+    .hint{font-size:.9rem;color:var(--muted)}
+    .meter{height:8px;border-radius:99px;background:#e5e7eb;overflow:hidden}
+    .bar{height:100%;background:var(--accent);width:0}
+
+    /* Visualização da memória */
+    .mem-wrap{display:grid;gap:8px}
+    .mem-title{font-weight:700}
+    .mem{display:grid;grid-template-columns:repeat(16,1fr);gap:4px}
+    .cell{border:1px dashed #cbd5e1;background:#f1f5f9;border-radius:6px;min-height:40px;display:flex;align-items:center;justify-content:center;font-weight:700}
+    .cell small{font-weight:400;color:var(--muted);display:block}
+    .ok{background:#ecfdf5;border-color:#bbf7d0}
+    .overflow{background:#fef2f2;border-color:#fecaca}
+    .legend{display:flex;gap:12px;align-items:center;font-size:.9rem;color:var(--muted)}
+    .dot{width:10px;height:10px;border-radius:999px}
+    .dot.ok{background:var(--ok)}
+    .dot.warn{background:var(--warn)}
+    code{background:#f1f5f9;padding:2px 6px;border-radius:6px}
+    footer{margin:24px 0 8px;color:var(--muted);font-size:.9rem}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Simulação didática de “buffer overflow” (client-side, sem exploração)</h1>
+    <p>Este exemplo em HTML/JS <strong>não explora nada</strong>; ele só ilustra por que limitar entradas importa. À esquerda, um campo sem limite (inseguro). À direita, o mesmo caso com limite e validação (seguro). A cópia para o “buffer” abaixo mostra visualmente quando dados excedem a capacidade.</p>
+
+    <div class="grid two">
+      <div class="card">
+        <h2>Entrada <span style="color:var(--warn)">sem limite</span> (simulação insegura)</h2>
+        <label for="inseguro">Digite qualquer texto</label>
+        <textarea id="inseguro" placeholder="Cole/tecle bastante texto aqui…"></textarea>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
+          <button id="processarInseguro">Copiar para buffer de 16 bytes</button>
+          <span class="hint">Sem <code>maxlength</code>; excesso será marcado como <em>overflow</em>.</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Entrada <span style="color:var(--ok)">com limite</span> (simulação segura)</h2>
+        <label for="seguro">Máximo de 16 caracteres</label>
+        <textarea id="seguro" maxlength="16" placeholder="Máx 16 caracteres…"></textarea>
+        <div class="meter" style="margin:8px 0 6px"><div class="bar" id="bar"></div></div>
+        <div class="hint"><span id="left">16</span> restantes</div>
+        <div style="margin-top:8px">
+          <button id="processarSeguro">Copiar para buffer de 16 bytes</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <div class="legend">
+        <div class="dot ok"></div> <span>Dentro do buffer (16)</span>
+        <div class="dot warn"></div> <span>Overflow (vazou para memória vizinha)</span>
+      </div>
+      <div class="grid two" style="margin-top:10px">
+        <div class="mem-wrap">
+          <div class="mem-title">Buffer (16 bytes)</div>
+          <div class="mem" id="buf"></div>
+        </div>
+        <div class="mem-wrap">
+          <div class="mem-title">Memória vizinha (apenas visualização)</div>
+          <div class="mem" id="near"></div>
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      <strong>Nota:</strong> browsers e JavaScript não sofrem “buffer overflow” assim; isto é uma <em>analogia visual</em> para entender por que backends em C/C++ precisam validar tamanho de entrada.
+    </footer>
+  </div>
+
+  <script>
+    const BUF_SIZE = 16;
+    const NEAR_SIZE = 16;
+
+    const bufEl = document.getElementById('buf');
+    const nearEl = document.getElementById('near');
+
+    function makeCells(el){
+      el.innerHTML = '';
+      const size = (el === bufEl) ? BUF_SIZE : NEAR_SIZE;
+      for(let i=0;i<size;i++){
+        const c = document.createElement('div');
+        c.className = 'cell';
+        c.dataset.idx = i;
+        c.innerHTML = '<small>'+(i.toString().padStart(2,'0'))+'</small>';
+        el.appendChild(c);
+      }
+    }
+    makeCells(bufEl); makeCells(nearEl);
+
+    function clearCells(){
+      [...bufEl.children, ...nearEl.children].forEach(cell=>{
+        cell.classList.remove('ok','overflow');
+        const sm = cell.querySelector('small');
+        cell.innerHTML = sm.outerHTML; // preserva o índice
+      });
+    }
+
+    function writeToBuffer(text){
+      clearCells();
+      const chars = [...text];
+      for(let i=0;i<chars.length;i++){
+        const ch = chars[i];
+        if(i < BUF_SIZE){
+          const cell = bufEl.children[i];
+          cell.classList.add('ok');
+          const sm = cell.querySelector('small');
+          cell.innerHTML = sm.outerHTML + ch;
+        } else if (i - BUF_SIZE < NEAR_SIZE){
+          const cell = nearEl.children[i - BUF_SIZE];
+          cell.classList.add('overflow');
+          const sm = cell.querySelector('small');
+          cell.innerHTML = sm.outerHTML + ch;
+        }
+      }
+    }
+
+    // Inseguro
+    document.getElementById('processarInseguro').addEventListener('click', ()=>{
+      const val = document.getElementById('inseguro').value;
+      writeToBuffer(val);
+    });
+
+    // Seguro + barra de progresso
+    const seguro = document.getElementById('seguro');
+    const left = document.getElementById('left');
+    const bar = document.getElementById('bar');
+
+    function updateMeter(){
+      const len = seguro.value.length;
+      left.textContent = BUF_SIZE - len;
+      bar.style.width = (len/BUF_SIZE*100) + '%';
+    }
+    seguro.addEventListener('input', updateMeter);
+    document.getElementById('processarSeguro').addEventListener('click', ()=>{
+      writeToBuffer(seguro.value);
+    });
+    updateMeter();
+  </script>
+</body>
+</html>

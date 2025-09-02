@@ -1,0 +1,16 @@
+#include <stdio.h>
+#include <string.h>
+
+int main() {
+    char aa[5];  // buffer pequeno, só cabe 4 caracteres + '\0' => define uma quantidade de letras padrões no buffer
+
+    printf("Digite um texto (máx 4 letras): "); => pede para inserir no máximo 4 letras
+    gets(aa);  // ⚠ gets NÃO verifica o tamanho da entrada => está lendo a string que foi escrita no teclado
+
+    printf("Você digitou: %s\n", aa); => imprimi na tela a quantidade de letras que você inseriu
+
+    return 0; 
+}
+
+(Este código é um simples exemplo de estouro de buffer(buffer overflow), onde é explorado a quantidade de strings suportadas. Isso causa um bug no processamento, retornando um erro/falha de seguimentação(segmentation fault))
+Isso precisa de atenção, pois não é somente num simples código como esse onde essa falha pode ocorrer. Ou seja, até mesmo em softwares de empresas grandes, esse tipo de falha pode escalar, causando um prejuízo enorme na empresa.
